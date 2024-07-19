@@ -3,7 +3,6 @@ from urllib.request import Request
 
 from fastapi import APIRouter, HTTPException
 from starlette import status
-from starlette.status import HTTP_409_CONFLICT, HTTP_201_CREATED, HTTP_500_INTERNAL_SERVER_ERROR, HTTP_400_BAD_REQUEST
 
 from app import schemas
 from app.db import User
@@ -13,7 +12,7 @@ from app.utils import generate_verification_code, check_user_exists, hash_passwo
 router = APIRouter()
 
 
-@router.post('/register', status_code=HTTP_201_CREATED,
+@router.post('/register', status_code=status.HTTP_201_CREATED,
              summary="Register a new user",
              description="Registers a new user by creating a new user entry in the database. Validates the user "
                          "input, hashes the password, and sends a verification email to the user with a verification "
@@ -21,7 +20,7 @@ router = APIRouter()
              response_description="Successful registration returns a status message indicating that a verification "
                                   "token was sent to the user's email.",
              responses={
-                 HTTP_201_CREATED: {
+                 status.HTTP_201_CREATED: {
                      "description": "User registered successfully and verification email sent.",
                      "content": {
                          "application/json": {
@@ -32,7 +31,7 @@ router = APIRouter()
                          }
                      }
                  },
-                 HTTP_400_BAD_REQUEST: {
+                 status.HTTP_400_BAD_REQUEST: {
                      "description": "Validation error for provided input.",
                      "content": {
                          "application/json": {
@@ -42,7 +41,7 @@ router = APIRouter()
                          }
                      }
                  },
-                 HTTP_409_CONFLICT: {
+                 status.HTTP_409_CONFLICT: {
                      "description": "Conflict error when trying to register with an existing email.",
                      "content": {
                          "application/json": {
@@ -52,7 +51,7 @@ router = APIRouter()
                          }
                      }
                  },
-                 HTTP_500_INTERNAL_SERVER_ERROR: {
+                 status.HTTP_500_INTERNAL_SERVER_ERROR: {
                      "description": "Server error if something goes wrong during email sending.",
                      "content": {
                          "application/json": {
@@ -66,7 +65,7 @@ router = APIRouter()
 async def create_user(payload: schemas.CreateUserSchema, request: Request):
     # Check if user already exists
     if await check_user_exists(payload.email):
-        raise HTTPException(status_code=HTTP_409_CONFLICT, detail='Account already exists')
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Account already exists')
 
     # Validate passwords
     validate_password(payload.password, payload.passwordConfirm)
@@ -106,6 +105,6 @@ async def create_user(payload: schemas.CreateUserSchema, request: Request):
             {"_id": result.inserted_id},
             {"$set": {"verification_code": None, "updated_at": datetime.utcnow()}}
         )
-        raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail=error)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=error)
 
     return {'status': 'success', 'message': 'Verification token successfully sent to your email'}
