@@ -3,24 +3,25 @@ from urllib.request import Request
 
 from fastapi import APIRouter, HTTPException
 from starlette import status
-from starlette.status import HTTP_409_CONFLICT, HTTP_201_CREATED, HTTP_500_INTERNAL_SERVER_ERROR
+from starlette.status import HTTP_409_CONFLICT, HTTP_201_CREATED, HTTP_500_INTERNAL_SERVER_ERROR, HTTP_400_BAD_REQUEST
 
 from app import schemas
 from app.db import User
-from app.schemas import UserResponseSchema
-from app.serializers.user import get_serialized_user
 from app.utils import generate_verification_code, check_user_exists, hash_password, validate_password, \
     construct_verification_url, send_verification_email
 
 router = APIRouter()
 
 
-@router.post('/register', status_code=status.HTTP_201_CREATED,
+@router.post('/register', status_code=HTTP_201_CREATED,
              summary="Register a new user",
-             description="Registers a new user by creating a new user entry in the database. Validates the user input, hashes the password, and sends a verification email to the user with a verification token. If an error occurs during email sending, the verification code is cleaned up.",
-             response_description="Successful registration returns a status message indicating that a verification token was sent to the user's email.",
+             description="Registers a new user by creating a new user entry in the database. Validates the user "
+                         "input, hashes the password, and sends a verification email to the user with a verification "
+                         "token. If an error occurs during email sending, the verification code is cleaned up.",
+             response_description="Successful registration returns a status message indicating that a verification "
+                                  "token was sent to the user's email.",
              responses={
-                 status.HTTP_201_CREATED: {
+                 HTTP_201_CREATED: {
                      "description": "User registered successfully and verification email sent.",
                      "content": {
                          "application/json": {
@@ -31,7 +32,7 @@ router = APIRouter()
                          }
                      }
                  },
-                 status.HTTP_400_BAD_REQUEST: {
+                 HTTP_400_BAD_REQUEST: {
                      "description": "Validation error for provided input.",
                      "content": {
                          "application/json": {
@@ -41,7 +42,7 @@ router = APIRouter()
                          }
                      }
                  },
-                 status.HTTP_409_CONFLICT: {
+                 HTTP_409_CONFLICT: {
                      "description": "Conflict error when trying to register with an existing email.",
                      "content": {
                          "application/json": {
@@ -51,7 +52,7 @@ router = APIRouter()
                          }
                      }
                  },
-                 status.HTTP_500_INTERNAL_SERVER_ERROR: {
+                 HTTP_500_INTERNAL_SERVER_ERROR: {
                      "description": "Server error if something goes wrong during email sending.",
                      "content": {
                          "application/json": {
