@@ -2,6 +2,7 @@ from datetime import datetime as dt
 from typing import List, Optional, Union
 
 from pydantic import BaseModel, constr, EmailStr
+from pydantic.v1 import validator
 
 
 class UserBaseSchema(BaseModel):
@@ -15,8 +16,17 @@ class UserBaseSchema(BaseModel):
 
 
 class UserUpdateSchema(BaseModel):
-    name: Optional[str] = ""
-    email: Optional[EmailStr] = None
+    full_name: Optional[str] = ""
+    email: Optional[str] = None
+    role: Optional[str] = None
+
+    @validator('email', pre=True, always=True)
+    def check_email(self, value):
+        if value == "":
+            return value
+        if value is not None:
+            return EmailStr.validate(value)
+        return value
 
 
 class LoginUserSchema(BaseModel):
@@ -24,18 +34,20 @@ class LoginUserSchema(BaseModel):
     password: constr(min_length=8)
 
 
-class UserResponseSchema(UserBaseSchema):
+class UserResponseSchema(BaseModel):
     id: str
+    full_name: Optional[str]
+    email: EmailStr
+    role: Optional[str]
 
 
 class UserResponse(BaseModel):
-    status: str
-    user: UserResponseSchema
+    message: Optional[str] = None
+    data: Optional[UserResponseSchema] = None
 
 
 class UsersResponse(BaseModel):
-    message: str
-    users: List[UserResponse]
+    data: List[UserResponseSchema]
     total: int
     skip: int
     limit: int

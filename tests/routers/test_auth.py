@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch, MagicMock
 
+from bson import ObjectId
 from fastapi import HTTPException
 from starlette import status
 from starlette.testclient import TestClient
@@ -20,6 +21,7 @@ auth_route = 'api/auth'
 
 def populate_test_user(password='pass1234', verified=True, role='user'):
     Users.insert_one({
+        '_id': ObjectId('669e483158ceb6772d1a1e23'),  # Convert string to ObjectId
         'full_name': 'Tester Guy',
         'email': 'tester@guy.com',
         'role': role,
