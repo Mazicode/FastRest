@@ -1,4 +1,8 @@
-from pydantic import BaseSettings, EmailStr
+from dotenv import load_dotenv
+from pydantic import EmailStr
+from pydantic_settings import BaseSettings
+
+load_dotenv()
 
 
 class Settings(BaseSettings):
@@ -20,7 +24,7 @@ class Settings(BaseSettings):
     EMAIL_FROM: EmailStr
 
     class Config:
-        env_file = './.env'
+        env_file = '.env'
 
 
 settings = Settings()

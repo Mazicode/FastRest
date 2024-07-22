@@ -1,27 +1,22 @@
-from __future__ import annotations
+from datetime import datetime as dt
+from typing import List, Optional, Union
 
-from datetime import datetime
-from typing import Optional
-
-from pydantic import BaseModel, EmailStr, constr
+from pydantic import BaseModel, constr, EmailStr
 
 
 class UserBaseSchema(BaseModel):
-    name: str
     email: str
-    photo: str
-    role: str
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    disabled: Union[bool, None] = None
+    created_at: Optional[dt] = None
+    updated_at: Optional[dt] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
-class CreateUserSchema(UserBaseSchema):
-    password: constr(min_length=8)
-    passwordConfirm: str
-    verified: bool = False
+class UserUpdateSchema(BaseModel):
+    name: Optional[str] = ""
+    email: Optional[EmailStr] = None
 
 
 class LoginUserSchema(BaseModel):
@@ -38,5 +33,34 @@ class UserResponse(BaseModel):
     user: UserResponseSchema
 
 
+class UsersResponse(BaseModel):
+    message: str
+    users: List[UserResponse]
+    total: int
+    skip: int
+    limit: int
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: Union[str, None] = None
+
+
 class FilteredUserResponse(UserBaseSchema):
     id: str
+
+
+class UserInDB(UserBaseSchema):
+    hashed_password: str
+
+
+class CreateUserSchema(UserBaseSchema):
+    full_name: Optional[str] = None
+    email: str
+    password: constr(min_length=8)
+    password_confirm: str
+    verified: bool = False

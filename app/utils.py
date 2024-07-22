@@ -1,7 +1,11 @@
 import hashlib
-from random import random
+import os
+import random
+from datetime import datetime, timedelta
 
+import jwt
 from fastapi import HTTPException, Request
+from jwt import ExpiredSignatureError, InvalidTokenError
 
 from passlib.context import CryptContext
 from pydantic import EmailStr
@@ -9,7 +13,7 @@ from starlette.status import HTTP_400_BAD_REQUEST
 
 from app import schemas
 from app.email import Email
-from app.schemas import UserBaseSchema
+from app.routers import auth
 from app.serializers.user import get_serialized_user
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -21,11 +25,6 @@ def hash_password(password: str):
 
 def verify_password(password: str, hashed_password: str):
     return pwd_context.verify(password, hashed_password)
-
-
-async def check_user_exists(email: str) -> bool:
-    user = UserBaseSchema.find_one({'email': email.lower()})
-    return user is not None
 
 
 def validate_password(password: str, password_confirm: str) -> None:
@@ -42,8 +41,40 @@ def generate_verification_code() -> str:
 
 
 def construct_verification_url(request: Request, token: str) -> str:
-    return f"{request.url.scheme}://{request.client.host}:{request.url.port}/api/auth/verifyemail/{token}"
+    return f"{request.url.scheme}://{request.client.host}:{request.url.port}/api/auth/verify_email/{token}"
 
 
 async def send_verification_email(user: schemas.UserResponseSchema, url: str, email: EmailStr) -> None:
     await Email(get_serialized_user(user), url, [email]).send_verification_code()
+
+
+def create_token(data: dict, expires_delta: timedelta = None, token_type: str = "access"):
+    to_encode = data.copy()
+    if token_type == "access":
+        expire = datetime.utcnow() + (
+            expires_delta if expires_delta else timedelta(minutes=auth.ACCESS_TOKEN_EXPIRES_IN))
+    elif token_type == "refresh":
+        expire = datetime.utcnow() + (expires_delta if expires_delta else timedelta(days=7))
+    else:
+        raise ValueError("Invalid token type")
+
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, os.getenv("SECRET_KEY"), algorithm=os.getenv("JWT_ALGORITHM"))
+
+    return encoded_jwt
+
+
+def is_valid_token(token: str) -> bool:
+    """
+    Check if a string is a valid JWT token.
+
+    :param token: The token string to validate
+    :return: True if the token is valid, False otherwise
+    """
+    try:
+        # Attempt to decode the token
+        jwt.decode(token, os.getenv("SECRET_KEY"), algorithms=[os.getenv("JWT_ALGORITHM")])
+        return True
+    except (ExpiredSignatureError, InvalidTokenError) as e:
+        print(f"Token validation error: {e}")
+        return False
