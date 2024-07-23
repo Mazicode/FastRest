@@ -9,6 +9,7 @@ from jwt import ExpiredSignatureError, InvalidTokenError
 
 from passlib.context import CryptContext
 from pydantic import EmailStr
+from starlette import status
 from starlette.status import HTTP_400_BAD_REQUEST
 
 from app import schemas
@@ -78,3 +79,21 @@ def is_valid_token(token: str) -> bool:
     except (ExpiredSignatureError, InvalidTokenError) as e:
         print(f"Token validation error: {e}")
         return False
+
+
+def decode_token(token: str):
+    try:
+        payload = jwt.decode(token, os.getenv("SECRET_KEY"), algorithms=[os.getenv("JWT_ALGORITHM")])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

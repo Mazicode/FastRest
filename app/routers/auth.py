@@ -1,19 +1,20 @@
-import hashlib
-from datetime import datetime
-
-from fastapi import Request, Response, Depends
+import os
+from datetime import datetime, timedelta
+import jwt
+from fastapi import Request, Response
 
 from fastapi import APIRouter, HTTPException
-from fastapi_jwt import JwtAccessBearer, JwtAuthorizationCredentials
+from fastapi_jwt import JwtAccessBearer
+from jwt import ExpiredSignatureError, InvalidTokenError
 from starlette import status
 
 from app import schemas
-from app import auth
 from app.config import settings
 from app.db import check_user_exists, Users
+from app.schemas import VerifyEmailResponse, Token
 from app.serializers.user import get_serialized_user
 from app.utils import generate_verification_code, hash_password, validate_password, \
-    construct_verification_url, send_verification_email, verify_password, create_token
+    construct_verification_url, send_verification_email, verify_password, create_token, decode_token, is_valid_token
 
 router = APIRouter()
 
@@ -165,17 +166,102 @@ def login(payload: schemas.LoginUserSchema, response: Response):
     return {'status': 'success', 'access_token': access_token}
 
 
-@router.get('/verifyemail/{token}')
-def verify_me(token: str):
-    hashedCode = hashlib.sha256()
-    hashedCode.update(bytes.fromhex(token))
-    verification_code = hashedCode.hexdigest()
-    result = Users.find_one_and_update({"verification_code": verification_code}, {
-        "$set": {"verification_code": None, "verified": True, "updated_at": datetime.utcnow()}}, new=True)
-    if not result:
+@router.post("/refresh_token")
+async def refresh_token(payload: Token):
+    if not is_valid_token(payload.access_token):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail='Invalid verification code or account already verified')
-    return {
-        "status": "success",
-        "message": "Account verified successfully"
-    }
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid token data"
+        )
+    try:
+        payload_data = decode_token(payload.access_token)
+        user_email = payload_data.get("email")
+
+        if not user_email or payload.email != user_email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="user not recognized"
+            )
+
+        new_access_token = create_token(data={"email": user_email})
+        return {"access_token": new_access_token, "token_type": "bearer"}
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred during token refresh {e}"
+        )
+
+
+@router.get('/verify_email/{token}', response_model=VerifyEmailResponse, summary="Verify Email",
+            description="Verifies the user's email using the provided JWT token.",
+            responses={
+                200: {
+                    "description": "Account verified successfully",
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "status": "success",
+                                "message": "Account verified successfully"
+                            }
+                        }
+                    }
+                },
+                403: {
+                    "description": "Invalid or expired token",
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "detail": "Invalid verification code or account already verified"
+                            }
+                        }
+                    }
+                }
+            })
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, os.getenv("SECRET_KEY"), algorithms=[os.getenv("JWT_ALGORITHM")])
+        user_email = payload.get("sub")
+
+        if not user_email:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid verification code"
+            )
+
+        result = Users.find_one_and_update(
+            {"email": user_email},
+            {
+                "$set": {
+                    "verification_code": None,
+                    "verified": True,
+                    "updated_at": datetime.utcnow()
+                }
+            },
+            return_document=True
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid verification code or account already verified"
+            )
+
+        return {
+            "status": "success",
+            "message": "Account verified successfully"
+        }
+
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Verification token has expired"
+        )
+
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid verification token"
+        )

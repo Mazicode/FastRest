@@ -1,5 +1,5 @@
+import os
 import unittest
-from datetime import datetime
 from unittest.mock import patch, MagicMock
 
 from bson import ObjectId
@@ -10,9 +10,11 @@ from starlette.testclient import TestClient
 from app import schemas
 from app.db import Users
 from app.main import app
-from app.utils import hash_password, is_valid_token
+from app.utils import hash_password, is_valid_token, create_token
 from tests.test_settings import TestSettings
 from dotenv import load_dotenv
+
+from tests.utils import create_test_token
 
 load_dotenv()
 
@@ -21,8 +23,8 @@ auth_route = 'api/auth'
 
 def populate_test_user(password='pass1234', verified=True, role='user'):
     Users.insert_one({
-        '_id': ObjectId('669e483158ceb6772d1a1e23'),  # Convert string to ObjectId
-        'full_name': 'Tester Guy',
+        '_id': ObjectId('669e483158ceb6772d1a1e23'),
+        'full_name': "Tester Guy",
         'email': 'tester@guy.com',
         'role': role,
         'password': password,
@@ -162,7 +164,6 @@ class TestCreateUser(unittest.TestCase):
 
 class TestLogin(unittest.TestCase):
     def setUp(self):
-        # Patch the Settings with TestSettings before app initialization
         self.settings_patcher = patch('app.config.Settings', new=TestSettings)
         self.mocked_settings = self.settings_patcher.start()
 
@@ -213,6 +214,63 @@ class TestLogin(unittest.TestCase):
         assert is_valid_token(cookies.get("refresh_token"))
         assert is_valid_token(cookies.get("access_token"))
         assert cookies.get("logged_in") == "True"
+
+
+class TestRefreshToken(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        self.secret_key = os.getenv("SECRET_KEY")
+        self.algorithm = os.getenv("JWT_ALGORITHM")
+        self.valid_refresh_token = create_token(data={"email": "tester@guy.com"})
+        self.invalid_refresh_token = "invalid_token"
+
+    def test_refresh_token_success(self):
+        response = self.client.post(f"{auth_route}/refresh_token",
+                                    json={"access_token": self.valid_refresh_token,
+                                          "token_type": "bearer",
+                                          "email": "tester@guy.com"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access_token", response.json())
+
+    def test_refresh_token_invalid_token(self):
+        response = self.client.post(f'{auth_route}/refresh_token',
+                                    json={"access_token": self.invalid_refresh_token,
+                                          "token_type": "bearer",
+                                          "email": "tester@guy.com"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"detail": "Invalid token data"})
+
+    def test_refresh_token_unauth_token(self):
+        response = self.client.post(f'{auth_route}/refresh_token',
+                                    json={"access_token": self.valid_refresh_token,
+                                          "token_type": "bearer",
+                                          "email": "another@guy.com"})
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"detail": "user not recognized"})
+
+
+class TestVerifyEmail(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        self.secret_key = os.getenv("SECRET_KEY")
+        self.algorithm = os.getenv("JWT_ALGORITHM")
+        self.token = create_test_token("tester@guy.com")
+        self.verify_route = f"{auth_route}/verify_email"
+
+    def test_verify_email_success(self):
+        response = self.client.get(f'{self.verify_route}/{self.token}')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "status": "success",
+            "message": "Account verified successfully"
+        })
+
+    def test_verify_email_invalid_token(self):
+        response = self.client.get(f'{self.verify_route}/wrong_token')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json(), {
+            "detail": "Invalid verification token"
+        })
 
 
 if __name__ == '__main__':

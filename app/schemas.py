@@ -56,6 +56,7 @@ class UsersResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    email: str
 
 
 class TokenData(BaseModel):
@@ -76,3 +77,8 @@ class CreateUserSchema(UserBaseSchema):
     password: constr(min_length=8)
     password_confirm: str
     verified: bool = False
+
+
+class VerifyEmailResponse(BaseModel):
+    status: str
+    message: str
