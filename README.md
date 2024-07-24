@@ -2,7 +2,8 @@
 
 ## Overview
 
-This is a FastAPI-based authentication service that provides functionalities for user registration, email verification, login, and token refresh. The application uses JWT (JSON Web Token) for secure authentication and authorization.
+This is a FastAPI-based authentication service that provides functionalities for user registration, email verification,
+login, and token refresh. The application uses JWT (JSON Web Token) for secure authentication and authorization.
 
 ## Features
 
@@ -33,7 +34,7 @@ This is a FastAPI-based authentication service that provides functionalities for
 ### How to Run the App
 
 - cd app
-python3 main.py
+  python3 main.py
 
 ### How to Run Unit Tests
 
@@ -45,14 +46,6 @@ python3 main.py
 - docker-compose build
 - docker-compose up
 
-
 ### Environment Variables
 
-Create a `.env` file in the root directory and add the following variables:
-
-```env
-SECRET_KEY=your_secret_key
-ACCESS_TOKEN_EXPIRES_IN=15 # Access token expiration time in minutes
-REFRESH_TOKEN_EXPIRES_IN=1440 # Refresh token expiration time in minutes
-MONGO_URI=mongodb://localhost:27017/yourdbname
-JWT_ALGORITHM=HS256
+Create a `.env` file in the root directory and add the variables defined in the config.py file.
