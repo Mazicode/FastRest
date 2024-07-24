@@ -1,9 +1,10 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 import jwt
 from fastapi import Request, Response
 
 from fastapi import APIRouter, HTTPException
+from fastapi.security import OAuth2PasswordBearer
 from fastapi_jwt import JwtAccessBearer
 from jwt import ExpiredSignatureError, InvalidTokenError
 from starlette import status
@@ -18,6 +19,7 @@ from app.utils import generate_verification_code, hash_password, validate_passwo
 
 router = APIRouter()
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 ACCESS_TOKEN_EXPIRES_IN = settings.ACCESS_TOKEN_EXPIRES_IN
 REFRESH_TOKEN_EXPIRES_IN = settings.REFRESH_TOKEN_EXPIRES_IN
 
@@ -149,8 +151,8 @@ def login(payload: schemas.LoginUserSchema, response: Response):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect Email or Password')
 
     # Create access and refresh tokens
-    access_token = create_token(data={"sub": user['email']})
-    refresh_token = create_token(data={"sub": user['email']}, token_type="refresh")
+    access_token = create_token(data={"email": user['email']})
+    refresh_token = create_token(data={"email": user['email']}, token_type="refresh")
 
     # Set the refresh token in an HTTP-only cookie
     response.set_cookie(key="refresh_token", value=refresh_token, httponly=True)

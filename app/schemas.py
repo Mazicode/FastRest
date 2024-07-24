@@ -6,7 +6,9 @@ from pydantic.v1 import validator
 
 
 class UserBaseSchema(BaseModel):
+    full_name: Optional[str] = None
     email: str
+    role: Optional[str] = None
     disabled: Union[bool, None] = None
     created_at: Optional[dt] = None
     updated_at: Optional[dt] = None
@@ -53,6 +55,14 @@ class UsersResponse(BaseModel):
     limit: int
 
 
+class CreateUserSchema(UserBaseSchema):
+    full_name: Optional[str] = None
+    email: str
+    password: constr(min_length=8)
+    password_confirm: str
+    verified: bool = False
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -61,22 +71,6 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Union[str, None] = None
-
-
-class FilteredUserResponse(UserBaseSchema):
-    id: str
-
-
-class UserInDB(UserBaseSchema):
-    hashed_password: str
-
-
-class CreateUserSchema(UserBaseSchema):
-    full_name: Optional[str] = None
-    email: str
-    password: constr(min_length=8)
-    password_confirm: str
-    verified: bool = False
 
 
 class VerifyEmailResponse(BaseModel):

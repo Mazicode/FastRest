@@ -1,7 +1,6 @@
 import os
 from datetime import datetime, timedelta
 from functools import wraps
-from typing import Optional
 
 from bson import ObjectId
 import jwt
@@ -29,7 +28,6 @@ def populate_test_users():
             'created_at': datetime.strptime('2021-02-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ'),
             'updated_at': datetime.strptime('2021-02-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
         }
-        # Add more user documents as needed
     ]
 
     # Insert the users into the collection
@@ -42,11 +40,6 @@ def create_test_token(email: str):
 
     return encoded_jwt
 
-def create_mock_token(email: str, expires_delta: Optional[timedelta] = None):
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
 
 def authenticated_request(email: str):
     def decorator(func):

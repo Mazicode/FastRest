@@ -13,7 +13,7 @@ from starlette import status
 from starlette.status import HTTP_400_BAD_REQUEST
 
 from app import schemas
-from app.email import Email
+from app.send_email import Email
 from app.routers import auth
 from app.serializers.user import get_serialized_user
 
@@ -38,6 +38,7 @@ def validate_password(password: str, password_confirm: str) -> None:
 def generate_verification_code() -> str:
     token = random.randbytes(10)
     hashed_code = hashlib.sha256(token).hexdigest()
+
     return hashed_code
 
 
