@@ -9,37 +9,12 @@ from starlette import status
 from starlette.responses import JSONResponse
 
 from app import schemas
-from app.routers.auth import oauth2_scheme
+from app.routers.auth import oauth2_scheme, is_denied
 from app.db import Users
 from app.schemas import UserUpdateSchema, UserResponseSchema, UserResponse
 from app.serializers.user import get_serialized_user_response
 
-import jwt
-
 router = APIRouter()
-
-
-# Dependency to get the current user
-def is_denied(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, os.getenv("SECRET_KEY"), algorithms=[os.getenv("JWT_ALGORITHM")])
-        user_email: str = payload.get("email")
-        if user_email is None:
-            raise credentials_exception
-    except (ExpiredSignatureError, InvalidTokenError) as e:
-        return e
-
-    user = Users.find_one({'email': user_email})
-    if user is None:
-        raise credentials_exception
-
-    return
-
 
 @router.get('/{user_id}',
             response_model=schemas.UserResponse,

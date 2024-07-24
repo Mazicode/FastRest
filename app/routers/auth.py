@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 import jwt
-from fastapi import Request, Response
+from fastapi import Request, Response, Depends
 
 from fastapi import APIRouter, HTTPException
 from fastapi.security import OAuth2PasswordBearer
@@ -9,22 +9,20 @@ from fastapi_jwt import JwtAccessBearer
 from jwt import ExpiredSignatureError, InvalidTokenError
 from starlette import status
 
-from app import schemas
 from app.config import settings
 from app.db import check_user_exists, Users
-from app.schemas import VerifyEmailResponse, Token
+from app.schemas import VerifyEmailResponse, Token, CreateUserSchema, LoginUserSchema
 from app.serializers.user import get_serialized_user
-from app.utils import generate_verification_code, hash_password, validate_password, \
-    construct_verification_url, send_verification_email, verify_password, create_token, decode_token, is_valid_token
+from app import utils
 
 router = APIRouter()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-ACCESS_TOKEN_EXPIRES_IN = settings.ACCESS_TOKEN_EXPIRES_IN
-REFRESH_TOKEN_EXPIRES_IN = settings.REFRESH_TOKEN_EXPIRES_IN
 
-access_token_jwt = JwtAccessBearer(secret_key="your-secret-key", access_expires_delta=ACCESS_TOKEN_EXPIRES_IN)
-refresh_token_jwt = JwtAccessBearer(secret_key="your-secret-key", access_expires_delta=REFRESH_TOKEN_EXPIRES_IN)
+access_token_jwt = JwtAccessBearer(secret_key=os.getenv("SECRET_KEY"),
+                                   access_expires_delta=settings.ACCESS_TOKEN_EXPIRES_IN)
+refresh_token_jwt = JwtAccessBearer(secret_key=os.getenv("SECRET_KEY"),
+                                    access_expires_delta=settings.REFRESH_TOKEN_EXPIRES_IN)
 
 
 @router.post('/signup',
@@ -78,16 +76,16 @@ refresh_token_jwt = JwtAccessBearer(secret_key="your-secret-key", access_expires
                      }
                  }
              })
-async def create_user(payload: schemas.CreateUserSchema, request: Request):
+async def create_user(payload: CreateUserSchema, request: Request):
     # Check if user already exists
     if await check_user_exists(payload.email):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Account already exists')
 
     # Validate passwords
-    validate_password(payload.password, payload.password_confirm)
+    utils.validate_password(payload.password, payload.password_confirm)
 
     # Prepare user data
-    hashed_password = hash_password(payload.password)
+    hashed_password = utils.hash_password(payload.password)
     user_data = {
         'full_name': payload.full_name,
         'email': payload.email.lower(),
@@ -104,17 +102,17 @@ async def create_user(payload: schemas.CreateUserSchema, request: Request):
 
     try:
         # Generate and save verification code
-        verification_code = generate_verification_code()
+        verification_code = utils.generate_verification_code()
         Users.find_one_and_update(
             {"_id": result.inserted_id},
             {"$set": {"verification_code": verification_code, "updated_at": datetime.utcnow()}}
         )
 
         # Construct verification URL
-        verification_url = construct_verification_url(request, verification_code)
+        verification_url = utils.construct_verification_url(request, verification_code)
 
         # Send verification email
-        await send_verification_email(new_user, verification_url, payload.email)
+        await utils.send_verification_email(new_user, verification_url, payload.email)
     except Exception as error:
         # Handle email sending failure and clean up verification code
         Users.find_one_and_update(
@@ -134,7 +132,7 @@ async def create_user(payload: schemas.CreateUserSchema, request: Request):
     401: {"description": "Please verify your email address",
           "content": {"application/json": {"example": {"detail": "Please verify your email address"}}}}
 })
-def login(payload: schemas.LoginUserSchema, response: Response):
+def login(payload: LoginUserSchema, response: Response):
     # Check if the user exists
     db_user = Users.find_one({'email': payload.email.lower()})
     if not db_user:
@@ -147,36 +145,37 @@ def login(payload: schemas.LoginUserSchema, response: Response):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Please verify your email address')
 
     # Check if the password is valid
-    if not verify_password(payload.password, user['password']):
+    if not utils.verify_password(payload.password, user['password']):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Incorrect Email or Password')
 
     # Create access and refresh tokens
-    access_token = create_token(data={"email": user['email']})
-    refresh_token = create_token(data={"email": user['email']}, token_type="refresh")
+    access_token = utils.create_token(data={"email": user['email']})
+    refresh_token = utils.create_token(data={"email": user['email']}, token_type="refresh")
 
     # Set the refresh token in an HTTP-only cookie
     response.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
 
     # Store refresh and access tokens in cookie
-    response.set_cookie('access_token', access_token, ACCESS_TOKEN_EXPIRES_IN * 60,
-                        ACCESS_TOKEN_EXPIRES_IN * 60, '/', None, False, True, 'lax')
+    response.set_cookie('access_token', access_token, settings.ACCESS_TOKEN_EXPIRES_IN * 60,
+                        settings.ACCESS_TOKEN_EXPIRES_IN * 60, '/', None, False, True, 'lax')
     response.set_cookie('refresh_token', refresh_token,
-                        REFRESH_TOKEN_EXPIRES_IN * 60, REFRESH_TOKEN_EXPIRES_IN * 60, '/', None, False, True, 'lax')
-    response.set_cookie('logged_in', 'True', ACCESS_TOKEN_EXPIRES_IN * 60,
-                        ACCESS_TOKEN_EXPIRES_IN * 60, '/', None, False, False, 'lax')
+                        settings.REFRESH_TOKEN_EXPIRES_IN * 60, settings.REFRESH_TOKEN_EXPIRES_IN * 60, '/', None,
+                        False, True, 'lax')
+    response.set_cookie('logged_in', 'True', settings.ACCESS_TOKEN_EXPIRES_IN * 60,
+                        settings.ACCESS_TOKEN_EXPIRES_IN * 60, '/', None, False, False, 'lax')
 
     return {'status': 'success', 'access_token': access_token}
 
 
 @router.post("/refresh_token")
 async def refresh_token(payload: Token):
-    if not is_valid_token(payload.access_token):
+    if not utils.is_valid_token(payload.access_token):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid token data"
         )
     try:
-        payload_data = decode_token(payload.access_token)
+        payload_data = utils.decode_token(payload.access_token)
         user_email = payload_data.get("email")
 
         if not user_email or payload.email != user_email:
@@ -185,7 +184,7 @@ async def refresh_token(payload: Token):
                 detail="user not recognized"
             )
 
-        new_access_token = create_token(data={"email": user_email})
+        new_access_token = utils.create_token(data={"email": user_email})
         return {"access_token": new_access_token, "token_type": "bearer"}
 
     except HTTPException as e:
@@ -267,3 +266,24 @@ def verify_token(token: str):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid verification token"
         )
+
+
+def is_denied(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, os.getenv("SECRET_KEY"), algorithms=[os.getenv("JWT_ALGORITHM")])
+        user_email: str = payload.get("email")
+        if user_email is None:
+            raise credentials_exception
+    except (ExpiredSignatureError, InvalidTokenError) as e:
+        return e
+
+    user = Users.find_one({'email': user_email})
+    if user is None:
+        raise credentials_exception
+
+    return

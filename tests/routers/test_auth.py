@@ -9,7 +9,7 @@ from starlette.testclient import TestClient
 
 from app import schemas
 from app.db import Users
-from app.main import app
+from app.main import api
 from app.utils import hash_password, is_valid_token, create_token
 from tests.test_settings import TestSettings
 from dotenv import load_dotenv
@@ -42,7 +42,7 @@ class TestCreateUser(unittest.TestCase):
         self.mocked_settings = self.settings_patcher.start()
 
         # Initialize the TestClient with the patched app
-        self.client = TestClient(app)
+        self.client = TestClient(api)
 
         # Ensure the collection is clean before the test
         Users.delete_many({})
@@ -168,7 +168,7 @@ class TestLogin(unittest.TestCase):
         self.mocked_settings = self.settings_patcher.start()
 
         # Initialize the TestClient with the patched app
-        self.client = TestClient(app)
+        self.client = TestClient(api)
 
         # Ensure the collection is clean before the test
         Users.delete_many({})
@@ -218,7 +218,7 @@ class TestLogin(unittest.TestCase):
 
 class TestRefreshToken(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
+        self.client = TestClient(api)
         self.secret_key = os.getenv("SECRET_KEY")
         self.algorithm = os.getenv("JWT_ALGORITHM")
         self.valid_refresh_token = create_token(data={"email": "tester@guy.com"})
@@ -251,7 +251,7 @@ class TestRefreshToken(unittest.TestCase):
 
 class TestVerifyEmail(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
+        self.client = TestClient(api)
         self.secret_key = os.getenv("SECRET_KEY")
         self.algorithm = os.getenv("JWT_ALGORITHM")
         self.token = create_test_token("tester@guy.com")

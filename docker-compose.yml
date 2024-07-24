@@ -22,7 +22,6 @@ services:
       - ./.env
     environment:
       DATABASE_URL: mongodb://mongo:27017/${MONGO_INITDB_DATABASE}
-      PYTHONPATH: /app
     ports:
       - '8000:8000'
     depends_on:

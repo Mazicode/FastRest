@@ -4,7 +4,7 @@ import random
 from datetime import datetime, timedelta
 
 import jwt
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Depends
 from jwt import ExpiredSignatureError, InvalidTokenError
 
 from passlib.context import CryptContext
@@ -13,6 +13,9 @@ from starlette import status
 from starlette.status import HTTP_400_BAD_REQUEST
 
 from app import schemas
+from app.config import settings
+from app.db import Users
+from app.routers import auth
 from app.send_email import Email
 from app.routers import auth
 from app.serializers.user import get_serialized_user
@@ -54,7 +57,7 @@ def create_token(data: dict, expires_delta: timedelta = None, token_type: str = 
     to_encode = data.copy()
     if token_type == "access":
         expire = datetime.utcnow() + (
-            expires_delta if expires_delta else timedelta(minutes=auth.ACCESS_TOKEN_EXPIRES_IN))
+            expires_delta if expires_delta else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRES_IN))
     elif token_type == "refresh":
         expire = datetime.utcnow() + (expires_delta if expires_delta else timedelta(days=7))
     else:

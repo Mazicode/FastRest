@@ -4,7 +4,7 @@ from bson import ObjectId
 from starlette.testclient import TestClient
 
 from app.db import Users
-from app.main import app
+from app.main import api
 from tests.routers.test_auth import populate_test_user
 from tests.utils import populate_test_users, create_test_token, authenticated_request
 
@@ -13,7 +13,7 @@ users_route = 'api/users'
 
 class TestGetUser(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
+        self.client = TestClient(api)
         self.user_id = ObjectId('669e483158ceb6772d1a1e23')
         self.token = create_test_token("tester@guy.com")
 
@@ -56,7 +56,7 @@ class TestGetUser(unittest.TestCase):
 
 class TestUpdateUser(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
+        self.client = TestClient(api)
         self.user_id = ObjectId('669e483158ceb6772d1a1e23')
         self.token = create_test_token("tester@guy.com")
 
@@ -124,7 +124,7 @@ class TestUpdateUser(unittest.TestCase):
 class TestFindUsers(unittest.TestCase):
     def setUp(self):
         populate_test_users()
-        self.client = TestClient(app)
+        self.client = TestClient(api)
 
         Users.delete_many({})
 
