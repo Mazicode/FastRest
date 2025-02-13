@@ -1,78 +1,57 @@
-from datetime import datetime as dt
-from typing import List, Optional, Union
+from datetime import datetime
+from typing import Optional, List
 
-from pydantic import BaseModel, constr, EmailStr
-from pydantic.v1 import validator
+from pydantic import BaseModel, EmailStr
+from sqlalchemy import Column, Integer, String, DateTime
+
+from app.db.config import Base
 
 
-class UserBaseSchema(BaseModel):
-    full_name: Optional[str] = None
-    email: str
-    role: Optional[str] = None
-    disabled: Union[bool, None] = None
-    created_at: Optional[dt] = None
-    updated_at: Optional[dt] = None
+class UserBase(BaseModel):
+    full_name: str
+    email: EmailStr
+    role: Optional[str] = "user"
+    verified: Optional[bool] = False
+
+
+class RegisterUserRequest(BaseModel):
+    email: EmailStr
+    password: str
+    password_confirm: str
+
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str]
+    email: Optional[EmailStr]
+    role: Optional[str]
+    verified: Optional[bool]
+
+
+class UserResponse(BaseModel):
+    id: int
+    full_name: str
+    email: EmailStr
+    role: str
+    verified: bool
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
 
 
-class UserUpdateSchema(BaseModel):
-    full_name: Optional[str] = ""
-    email: Optional[str] = None
-    role: Optional[str] = None
-
-    @validator('email', pre=True, always=True)
-    def check_email(self, value):
-        if value == "":
-            return value
-        if value is not None:
-            return EmailStr.validate(value)
-        return value
-
-
-class LoginUserSchema(BaseModel):
-    email: EmailStr
-    password: constr(min_length=8)
-
-
-class UserResponseSchema(BaseModel):
-    id: str
-    full_name: Optional[str]
-    email: EmailStr
-    role: Optional[str]
-
-
-class UserResponse(BaseModel):
-    message: Optional[str] = None
-    data: Optional[UserResponseSchema] = None
-
-
 class UsersResponse(BaseModel):
-    data: List[UserResponseSchema]
+    data: List[UserResponse]
     total: int
     skip: int
     limit: int
 
 
-class CreateUserSchema(UserBaseSchema):
-    full_name: Optional[str] = None
-    email: str
-    password: constr(min_length=8)
-    password_confirm: str
-    verified: bool = False
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-    email: str
-
-
-class TokenData(BaseModel):
-    username: Union[str, None] = None
-
-
-class VerifyEmailResponse(BaseModel):
-    status: str
-    message: str
+# RefreshToken model
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer)
+    token = Column(String(255))
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)

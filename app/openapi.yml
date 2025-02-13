@@ -1,0 +1,316 @@
+openapi: 3.1.0
+info:
+  title: User Management API
+  description: API for user registration, login, and user data management
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Local server
+
+paths:
+  /signup:
+    post:
+      summary: Register a new user
+      description: Registers a new user by creating a new entry in the database and sends a verification email.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '201':
+          description: User registered successfully and verification email sent.
+          content:
+            application/json:
+              example:
+                status: success
+                message: Verification token successfully sent to your email
+        '400':
+          description: Validation error for provided input.
+          content:
+            application/json:
+              example:
+                detail: Email already registered
+        '409':
+          description: Conflict error when trying to register with an existing email.
+          content:
+            application/json:
+              example:
+                detail: Account already exists
+        '500':
+          description: Server error during email sending.
+          content:
+            application/json:
+              example:
+                detail: An unexpected error occurred
+        default:
+          $ref: '#/components/responses/DefaultError'
+
+  /login:
+    post:
+      summary: Login User
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successful login, access, and refresh tokens returned.
+          content:
+            application/json:
+              example:
+                status: success
+                access_token: your_access_token
+        '401':
+          description: Invalid email or password.
+          content:
+            application/json:
+              example:
+                detail: Invalid email or password
+        default:
+          $ref: '#/components/responses/DefaultError'
+
+  /refresh_token:
+    post:
+      summary: Refresh Access Token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: New access token created.
+          content:
+            application/json:
+              example:
+                access_token: new_access_token
+        '401':
+          description: Invalid refresh token.
+          content:
+            application/json:
+              example:
+                detail: Invalid refresh token
+        default:
+          $ref: '#/components/responses/DefaultError'
+
+  /users/{user_id}:
+    get:
+      summary: Retrieve a user's information
+      description: Fetches a user's details by their unique ID.
+      operationId: getUser
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User retrieved successfully.
+          content:
+            application/json:
+              example:
+                id: 1
+                full_name: John Doe
+                email: johndoe@example.com
+                role: user
+                verified: false
+                created_at: 2021-01-01T00:00:00Z
+                updated_at: 2021-01-01T00:00:00Z
+        '404':
+          description: User not found.
+          content:
+            application/json:
+              example:
+                detail: User not found
+        default:
+          $ref: '#/components/responses/DefaultError'
+
+    put:
+      summary: Update a user's information or delete the user
+      description: Updates user info, and if an empty email is provided, the user is deleted.
+      operationId: updateUser
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                full_name:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '200':
+          description: User updated successfully or deleted.
+          content:
+            application/json:
+              examples:
+                Update Success:
+                  summary: User updated successfully.
+                  value:
+                    id: 1
+                    full_name: Jane Doe
+                    email: janedoe@example.com
+                    role: user
+                    verified: true
+                    created_at: 2021-01-01T00:00:00Z
+                    updated_at: 2021-06-01T00:00:00Z
+                Delete Success:
+                  summary: User successfully deleted.
+                  value:
+                    message: User successfully deleted
+        '404':
+          description: User not found.
+          content:
+            application/json:
+              example:
+                detail: User not found
+        default:
+          $ref: '#/components/responses/DefaultError'
+
+  /users:
+    get:
+      summary: Retrieve a list of users with optional filters and pagination
+      operationId: findUsers
+      parameters:
+        - name: full_name
+          in: query
+          schema:
+            type: string
+          description: Filter by user's full name
+        - name: email
+          in: query
+          schema:
+            type: string
+          description: Filter by user's email
+        - name: role
+          in: query
+          schema:
+            type: string
+          description: Filter by user's role
+        - name: skip
+          in: query
+          schema:
+            type: integer
+          description: Number of users to skip
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: Maximum number of users to return
+      responses:
+        '200':
+          description: Users retrieved successfully.
+          content:
+            application/json:
+              example:
+                data:
+                  - id: 1
+                    full_name: John Doe
+                    email: johndoe@example.com
+                    role: user
+                    verified: false
+                    created_at: 2021-01-01T00:00:00Z
+                    updated_at: 2021-01-01T00:00:00Z
+                total: 1
+                skip: 0
+                limit: 10
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              example:
+                detail: An unexpected error occurred
+        default:
+          $ref: '#/components/responses/DefaultError'
+
+components:
+  schemas:
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        full_name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UsersResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+        total:
+          type: integer
+        skip:
+          type: integer
+        limit:
+          type: integer
+
+    UserUpdate:
+      type: object
+      properties:
+        full_name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+
+  responses:
+    DefaultError:
+      description: An unexpected error occurred.
+      content:
+        application/json:
+          example:
+            detail: An unexpected error occurred
+
+securitySchemes:
+  bearerAuth:
+    type: http
+    scheme: bearer
+    bearerFormat: JWT

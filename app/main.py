@@ -1,11 +1,16 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 from app.config import settings
 from app.routers import auth, user
 
 api = FastAPI()
+limiter = Limiter(key_func=get_remote_address)
+api.add_middleware(SlowAPIMiddleware)
 
 base_path = '/api'
 
@@ -16,8 +21,8 @@ origins = [
 CORSMiddleware(
     api,
     allow_origins=(),
-    allow_methods="GET",
-    allow_headers=(),
+    allow_methods=["*"],
+    allow_headers=["*"],
     allow_credentials=False,
     allow_origin_regex=None,
     expose_headers=(),

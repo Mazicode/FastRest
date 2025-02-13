@@ -24,7 +24,6 @@ class Email:
         pass
 
     async def send_email(self, subject, template):
-        # Define the config
         conf = ConnectionConfig(
             MAIL_USERNAME=settings.EMAIL_USERNAME,
             MAIL_PASSWORD=settings.EMAIL_PASSWORD,
@@ -36,7 +35,6 @@ class Email:
             USE_CREDENTIALS=True,
             VALIDATE_CERTS=True
         )
-        # Generate the HTML template base on the template name
         template = env.get_template(f'{template}.html')
 
         html = template.render(
@@ -45,7 +43,6 @@ class Email:
             subject=subject
         )
 
-        # Define the message options
         message = MessageSchema(
             subject=subject,
             recipients=self.email,
@@ -53,7 +50,6 @@ class Email:
             subtype="html"
         )
 
-        # Send the email
         fm = FastMail(conf)
         await fm.send_message(message)
 

@@ -1,10 +1,11 @@
 import hashlib
-import os
 import random
 from datetime import datetime, timedelta
 
 import jwt
-from fastapi import HTTPException, Request, Depends
+from fastapi import HTTPException, Request, Depends, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError
 from jwt import ExpiredSignatureError, InvalidTokenError
 
 from passlib.context import CryptContext
@@ -14,28 +15,26 @@ from starlette.status import HTTP_400_BAD_REQUEST
 
 from app import schemas
 from app.config import settings
-from app.db import Users
-from app.routers import auth
+from app.db.models import User
 from app.send_email import Email
-from app.routers import auth
 from app.serializers.user import get_serialized_user
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+bearer_scheme = HTTPBearer()
 
 
 def hash_password(password: str):
     return pwd_context.hash(password)
 
 
-def verify_password(password: str, hashed_password: str):
-    return pwd_context.verify(password, hashed_password)
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 def validate_password(password: str, password_confirm: str) -> None:
     if password != password_confirm:
         raise HTTPException(
-            status_code=HTTP_400_BAD_REQUEST, detail='Passwords do not match'
-        )
+            status_code=HTTP_400_BAD_REQUEST, detail='Passwords do not match')
 
 
 def generate_verification_code() -> str:
@@ -49,24 +48,8 @@ def construct_verification_url(request: Request, token: str) -> str:
     return f"{request.url.scheme}://{request.client.host}:{request.url.port}/api/auth/verify_email/{token}"
 
 
-async def send_verification_email(user: schemas.UserResponseSchema, url: str, email: EmailStr) -> None:
+async def send_verification_email(user: schemas.UserBase, url: str, email: EmailStr) -> None:
     await Email(get_serialized_user(user), url, [email]).send_verification_code()
-
-
-def create_token(data: dict, expires_delta: timedelta = None, token_type: str = "access"):
-    to_encode = data.copy()
-    if token_type == "access":
-        expire = datetime.utcnow() + (
-            expires_delta if expires_delta else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRES_IN))
-    elif token_type == "refresh":
-        expire = datetime.utcnow() + (expires_delta if expires_delta else timedelta(days=7))
-    else:
-        raise ValueError("Invalid token type")
-
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, os.getenv("SECRET_KEY"), algorithm=os.getenv("JWT_ALGORITHM"))
-
-    return encoded_jwt
 
 
 def is_valid_token(token: str) -> bool:
@@ -78,7 +61,7 @@ def is_valid_token(token: str) -> bool:
     """
     try:
         # Attempt to decode the token
-        jwt.decode(token, os.getenv("SECRET_KEY"), algorithms=[os.getenv("JWT_ALGORITHM")])
+        jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         return True
     except (ExpiredSignatureError, InvalidTokenError) as e:
         print(f"Token validation error: {e}")
@@ -87,7 +70,7 @@ def is_valid_token(token: str) -> bool:
 
 def decode_token(token: str):
     try:
-        payload = jwt.decode(token, os.getenv("SECRET_KEY"), algorithms=[os.getenv("JWT_ALGORITHM")])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(
@@ -101,3 +84,52 @@ def decode_token(token: str):
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(settings.ACCESS_TOKEN_EXPIRES_IN)
+
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+    return encoded_jwt
+
+
+def create_refresh_token(data: dict):
+    expires = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRES_IN)
+    to_encode = data.copy()
+    to_encode.update({"exp": expires})
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+    return encoded_jwt
+
+
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+# Dependency to get the current user from the JWT token
+def get_current_user(credentials: HTTPAuthorizationCredentials = Security(bearer_scheme)) -> User:
+    return decode_token(credentials.credentials)
+
+
+# Role-based access control decorator
+def require_role(role: str):
+    def role_checker(user: User = Depends(get_current_user)):
+        if user.role != role:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return user
+
+    return role_checker
